@@ -1,0 +1,5 @@
+python-telegram-bot==20.7
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+pytesseract==0.3.10
+Pillow==10.1.0

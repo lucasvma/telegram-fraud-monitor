@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:14
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - fraud_monitor_network
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+      - DB_NAME=${DB_NAME}
+      - DB_PORT=${DB_PORT:-5432}
+      - ALLOWED_CHAT_IDS=${ALLOWED_CHAT_IDS:-}
+      - MAX_MESSAGE_LENGTH=${MAX_MESSAGE_LENGTH:-5000}
+      - MAX_IMAGE_SIZE_MB=${MAX_IMAGE_SIZE_MB:-10}
+      - RATE_LIMIT_MESSAGES_PER_MINUTE=${RATE_LIMIT_MESSAGES_PER_MINUTE:-30}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FILE=${LOG_FILE:-/app/logs/fraud_monitor.log}
+      - OCR_LANGUAGES=${OCR_LANGUAGES:-eng+por}
+      - OCR_MAX_TEXT_LENGTH=${OCR_MAX_TEXT_LENGTH:-2000}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - fraud_monitor_network
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp/fraud_bot_secure:noexec,nosuid,size=100m
+      - /app/logs:noexec,nosuid,size=50m
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  fraud_monitor_network:
+    driver: bridge
+    internal: false
